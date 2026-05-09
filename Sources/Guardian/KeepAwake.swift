@@ -1,65 +1,30 @@
 import Foundation
-import IOKit
 
-// Prevents system and display sleep using IOKit power assertions.
-// Same mechanism as `caffeinate -d -i -s`.
+// Prevents system and display sleep by spawning `caffeinate`.
+// Same effect as IOKit power assertions, but works in pure Swift
+// without needing C bridging headers.
 
 class KeepAwake {
-    private var sleepAssertionID: IOPMAssertionID = 0
-    private var displayAssertionID: IOPMAssertionID = 0
-    private var idleAssertionID: IOPMAssertionID = 0
-    private var isAssertionActive = false
+    private var caffeinateProcess: Process?
 
     @discardableResult
     func activate() -> Bool {
-        let sleepReason = "Guardian: prevent system sleep" as CFString
-        let sleepResult = IOPMAssertionCreateWithName(
-            kIOPMAssertPreventUserIdleSystemSleep as CFString,
-            IOPMAssertionLevel.defaultValue,
-            sleepReason,
-            &sleepAssertionID
-        )
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: "/usr/bin/caffeinate")
+        proc.arguments = ["-d", "-i", "-s"]  // prevent display sleep, idle sleep, system sleep
 
-        let displayReason = "Guardian: prevent display sleep" as CFString
-        let displayResult = IOPMAssertionCreateWithName(
-            kIOPMAssertPreventUserIdleDisplaySleep as CFString,
-            IOPMAssertionLevel.defaultValue,
-            displayReason,
-            &displayAssertionID
-        )
-
-        let idleReason = "Guardian: prevent idle sleep" as CFString
-        let idleResult = IOPMAssertionCreateWithName(
-            kIOPMAssertPreventUserIdleSystemSleep as CFString,
-            IOPMAssertionLevel.defaultValue,
-            idleReason,
-            &idleAssertionID
-        )
-
-        let success = sleepResult == kIOReturnSuccess
-            && displayResult == kIOReturnSuccess
-            && idleResult == kIOReturnSuccess
-
-        isAssertionActive = success
-        return success
+        do {
+            try proc.run()
+            caffeinateProcess = proc
+            return true
+        } catch {
+            return false
+        }
     }
 
     func deactivate() {
-        guard isAssertionActive else { return }
-
-        if sleepAssertionID != 0 {
-            IOPMAssertionRelease(sleepAssertionID)
-            sleepAssertionID = 0
-        }
-        if displayAssertionID != 0 {
-            IOPMAssertionRelease(displayAssertionID)
-            displayAssertionID = 0
-        }
-        if idleAssertionID != 0 {
-            IOPMAssertionRelease(idleAssertionID)
-            idleAssertionID = 0
-        }
-        isAssertionActive = false
+        caffeinateProcess?.terminate()
+        caffeinateProcess = nil
     }
 
     deinit {
