@@ -6,25 +6,24 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     name: Build & Test
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Print Swift version
-        run: swift --version
+      - uses: actions/checkout@v4.2.2
 
       - name: Build
-        run: swift build -c release 2>&1
+        run: swift build -c release
 
       - name: Run tests
-        run: swift test 2>&1
+        run: swift test
 
       - name: Upload binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: guardian-macos-arm64
           path: .build/release/guardian
-          retention-days: 30
