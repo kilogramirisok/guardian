@@ -162,6 +162,28 @@ The `CFRunLoopRun()` call is what keeps the process alive. Without it, the proce
 
 5. **`caffeinate -s` only works on AC power.** On battery, the system may still sleep. This matches macOS behavior for all caffeinate-based tools.
 
+## Code Review (2025-05-09)
+
+### Issues Found and Fixed
+
+| # | Severity | Issue | Fix |
+|---|----------|-------|-----|
+| C1 | CRITICAL | Event tap re-enable failure leaves machine locked | `onEmergencyUnlock` callback + `CGEvent.tapIsEnabled` check |
+| C2 | CRITICAL | `Unmanaged.passUnretained` use-after-free risk | `InputLockRefBox` + `passRetained` |
+| H1 | HIGH | Stacked Touch ID dialogs from rapid ⌘⇧L | `isAuthenticating` re-entry guard |
+| H2 | HIGH | Orphaned caffeinate on SIGTERM/SIGINT | Signal handlers → `CFRunLoopStop(CFRunLoopGetMain())` |
+| H3 | HIGH | Double-unlock race in wrap mode | `isUnlocked` flag in `unlock()` |
+| H4 | HIGH | Pipe readabilityHandler retain cycle | Nil out handlers on process exit/terminate |
+| M1 | MEDIUM | Status command was dead code (no socket) | PID file + `kill(pid, 0)` liveness check |
+| M2 | MEDIUM | Negative timeout = instant unlock | Reject ≤0, cap at 24h |
+| M3 | MEDIUM | Child exit code not propagated | `childExitCode` stored on daemon |
+| M5 | MEDIUM | Accessibility revoked mid-lock = stuck | 30s watchdog timer re-checks |
+
+### Remaining LOW (documented, not fixed)
+- L1: `--screen-blur` flag + `--blur` interaction is confusing
+- L4: Overlay subtitle hardcoded ("⌘⇧L to unlock") even in wrap mode
+- L5: No upper bound on timeout (now capped at 24h)
+
 ## File Structure
 
 ```
