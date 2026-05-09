@@ -22,25 +22,25 @@ final class DurationParsingTests: XCTestCase {
 
     func testRejectsNegative() {
         XCTAssertThrowsError(try GuardianCLI.parseDuration("-1h")) { error in
-            let desc = error.localizedDescription.lowercased()
-            XCTAssertTrue(desc.contains("positive") || desc.contains("invalid"),
-                          "Expected positive/invalid, got: \(desc)")
+            let desc = String(describing: error).lowercased()
+            XCTAssertTrue(desc.contains("positive"),
+                          "Expected 'positive', got: \(desc)")
         }
     }
 
     func testRejectsZero() {
         XCTAssertThrowsError(try GuardianCLI.parseDuration("0h")) { error in
-            let desc = error.localizedDescription.lowercased()
-            XCTAssertTrue(desc.contains("positive") || desc.contains("invalid"),
-                          "Expected positive/invalid, got: \(desc)")
+            let desc = String(describing: error).lowercased()
+            XCTAssertTrue(desc.contains("positive"),
+                          "Expected 'positive', got: \(desc)")
         }
     }
 
     func testRejectsExceedsMax() {
         XCTAssertThrowsError(try GuardianCLI.parseDuration("25h")) { error in
-            let desc = error.localizedDescription.lowercased()
-            XCTAssertTrue(desc.contains("24h") || desc.contains("maximum") || desc.contains("exceeds"),
-                          "Expected 24h/max/exceeds, got: \(desc)")
+            let desc = String(describing: error).lowercased()
+            XCTAssertTrue(desc.contains("24h"),
+                          "Expected '24h', got: \(desc)")
         }
     }
 
