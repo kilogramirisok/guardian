@@ -2,7 +2,7 @@ import ArgumentParser
 import Foundation
 
 @main
-struct GuardianCLI: ParsableCommand {
+struct GuardianCLI: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "guardian",
         abstract: "Lock input, prevent sleep, keep agents running.",
@@ -11,7 +11,7 @@ struct GuardianCLI: ParsableCommand {
     )
 }
 
-struct LockCommand: ParsableCommand {
+struct LockCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "lock",
         abstract: "Lock all input devices and prevent sleep."
@@ -26,14 +26,14 @@ struct LockCommand: ParsableCommand {
     @Flag(name: .shortAndLong, help: "Show overlay with blur effect.")
     var screenBlur = false
 
-    func run() throws {
+    func run() async throws {
         let daemon = GuardianDaemon()
         let seconds = try GuardianCLI.parseDuration(timeout)
-        try daemon.lock(blur: screenBlur ? blur : 0, timeoutSeconds: seconds)
+        try await daemon.lock(blur: screenBlur ? blur : 0, timeoutSeconds: seconds)
     }
 }
 
-struct WrapCommand: ParsableCommand {
+struct WrapCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "wrap",
         abstract: "Lock input, run a command, auto-unlock when it exits."
@@ -45,24 +45,24 @@ struct WrapCommand: ParsableCommand {
     @Option(name: .shortAndLong, help: "Blur level for screen overlay (0-10).")
     var blur: Int = 0
 
-    func run() throws {
+    func run() async throws {
         guard !command.isEmpty else {
             throw ValidationError("No command provided. Usage: guardian wrap -- <command>")
         }
         let daemon = GuardianDaemon()
-        try daemon.wrap(command: command, blur: blur)
+        try await daemon.wrap(command: command, blur: blur)
     }
 }
 
-struct StatusCommand: ParsableCommand {
+struct StatusCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "status",
         abstract: "Query guardian daemon status."
     )
 
-    func run() throws {
+    func run() async throws {
         let daemon = GuardianDaemon()
-        try daemon.status()
+        try await daemon.status()
     }
 }
 

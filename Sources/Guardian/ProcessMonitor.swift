@@ -3,12 +3,16 @@ import Foundation
 // Monitors a child process PID for exit.
 // Used by `guardian wrap` to auto-unlock when the wrapped command finishes.
 
-class ProcessMonitor {
-    private var process: Process?
-    private var stdoutPipe: Pipe?
-    private var stderrPipe: Pipe?
-    var onOutput: ((String) -> Void)?
-    var onExit: ((Int32) -> Void)?
+final class ProcessMonitor: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _process: Process?
+    private var process: Process? {
+        get { lock.withLock { _process } }
+        set { lock.withLock { _process = newValue } }
+    }
+
+    var onOutput: (@Sendable (String) -> Void)?
+    var onExit: (@Sendable (Int32) -> Void)?
 
     func launch(command: [String]) throws -> pid_t {
         let proc = Process()
@@ -26,34 +30,32 @@ class ProcessMonitor {
         let errPipe = Pipe()
         proc.standardOutput = outPipe
         proc.standardError = errPipe
-        stdoutPipe = outPipe
-        stderrPipe = errPipe
 
-        outPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+        outPipe.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
             if !data.isEmpty, let output = String(data: data, encoding: .utf8) {
-                self?.onOutput?(output)
+                self.onOutput?(output)
             }
         }
 
-        errPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+        errPipe.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
             if !data.isEmpty, let output = String(data: data, encoding: .utf8) {
-                self?.onOutput?(output)
+                self.onOutput?(output)
             }
         }
 
         try proc.run()
 
-        DispatchQueue.global(qos: .utility).async { [weak self] in
+        let pid = proc.processIdentifier
+
+        DispatchQueue.global(qos: .utility).async {
             proc.waitUntilExit()
             let exitCode = proc.terminationStatus
-            DispatchQueue.main.async {
-                self?.onExit?(exitCode)
-            }
+            self.onExit?(exitCode)
         }
 
-        return proc.processIdentifier
+        return pid
     }
 
     func terminate() {
