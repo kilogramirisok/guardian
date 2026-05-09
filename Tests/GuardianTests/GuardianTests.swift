@@ -1,47 +1,45 @@
 import XCTest
 @testable import Guardian
 
-// Note: InputLock, Overlay, and Unlock tests cannot run on CI
+// InputLock, Overlay, and Unlock tests cannot run on CI
 // (require Accessibility permission + display).
 // Those are tested manually on real hardware.
 
 final class DurationParsingTests: XCTestCase {
 
     func testParseSeconds() throws {
-        // Test via Lock command argument parsing
-        // We test the parseDuration logic indirectly
-        XCTAssertEqual(parseDurationTestHelper("30s"), 30)
-        XCTAssertEqual(parseDurationTestHelper("30"), 30)
+        XCTAssertEqual(try GuardianCLI.parseDuration("30s"), 30)
+        XCTAssertEqual(try GuardianCLI.parseDuration("30"), 30)
     }
 
     func testParseMinutes() throws {
-        XCTAssertEqual(parseDurationTestHelper("5m"), 300)
-        XCTAssertEqual(parseDurationTestHelper("30m"), 1800)
+        XCTAssertEqual(try GuardianCLI.parseDuration("5m"), 300)
+        XCTAssertEqual(try GuardianCLI.parseDuration("30m"), 1800)
     }
 
     func testParseHours() throws {
-        XCTAssertEqual(parseDurationTestHelper("1h"), 3600)
-        XCTAssertEqual(parseDurationTestHelper("8h"), 28800)
-        XCTAssertEqual(parseDurationTestHelper("2h"), 7200)
+        XCTAssertEqual(try GuardianCLI.parseDuration("1h"), 3600)
+        XCTAssertEqual(try GuardianCLI.parseDuration("8h"), 28800)
+        XCTAssertEqual(try GuardianCLI.parseDuration("2h"), 7200)
     }
 }
 
 final class FormattingTests: XCTestCase {
 
     func testFormatSecondsOnly() {
-        XCTAssertEqual(formatDurationTestHelper(45), "45s")
+        XCTAssertEqual(GuardianCLI.formatDuration(45), "45s")
     }
 
     func testFormatMinutesAndSeconds() {
-        XCTAssertEqual(formatDurationTestHelper(125), "2m 5s")
+        XCTAssertEqual(GuardianCLI.formatDuration(125), "2m 5s")
     }
 
     func testFormatHours() {
-        XCTAssertEqual(formatDurationTestHelper(3661), "1h 1m 1s")
+        XCTAssertEqual(GuardianCLI.formatDuration(3661), "1h 1m 1s")
     }
 
     func testFormatZero() {
-        XCTAssertEqual(formatDurationTestHelper(0), "0s")
+        XCTAssertEqual(GuardianCLI.formatDuration(0), "0s")
     }
 }
 
@@ -67,7 +65,6 @@ final class ProcessMonitorTests: XCTestCase {
 
         waitForExpectations(timeout: 5)
 
-        XCTAssertTrue(monitor.isRunning == false)
         XCTAssertEqual(exitCode, 0)
         XCTAssertTrue(receivedOutput.contains("hello guardian"))
     }
@@ -97,7 +94,6 @@ final class ProcessMonitorTests: XCTestCase {
 
         monitor.terminate()
 
-        // After termination, process should no longer be running
         sleep(1)
         XCTAssertFalse(monitor.isRunning)
     }

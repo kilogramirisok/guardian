@@ -10,30 +10,28 @@ class KeepAwake {
     private var idleAssertionID: IOPMAssertionID = 0
     private var isAssertionActive = false
 
+    @discardableResult
     func activate() -> Bool {
-        // Prevent system sleep
         let sleepReason = "Guardian: prevent system sleep" as CFString
         let sleepResult = IOPMAssertionCreateWithName(
             kIOPMAssertPreventUserIdleSystemSleep as CFString,
-            IOPMAssertionLevel.default.rawValue,
+            IOPMAssertionLevel.defaultValue,
             sleepReason,
             &sleepAssertionID
         )
 
-        // Prevent display sleep
         let displayReason = "Guardian: prevent display sleep" as CFString
         let displayResult = IOPMAssertionCreateWithName(
             kIOPMAssertPreventUserIdleDisplaySleep as CFString,
-            IOPMAssertionLevel.default.rawValue,
+            IOPMAssertionLevel.defaultValue,
             displayReason,
             &displayAssertionID
         )
 
-        // Prevent idle sleep
         let idleReason = "Guardian: prevent idle sleep" as CFString
         let idleResult = IOPMAssertionCreateWithName(
             kIOPMAssertPreventUserIdleSystemSleep as CFString,
-            IOPMAssertionLevel.default.rawValue,
+            IOPMAssertionLevel.defaultValue,
             idleReason,
             &idleAssertionID
         )

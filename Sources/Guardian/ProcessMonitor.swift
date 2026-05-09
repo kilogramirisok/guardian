@@ -18,7 +18,6 @@ class ProcessMonitor {
             proc.executableURL = URL(fileURLWithPath: command[0])
             proc.arguments = Array(command[1...])
         } else if command.count == 1 {
-            // Single command — resolve via PATH
             proc.executableURL = URL(fileURLWithPath: "/usr/bin/env")
             proc.arguments = command
         }
@@ -30,7 +29,6 @@ class ProcessMonitor {
         stdoutPipe = outPipe
         stderrPipe = errPipe
 
-        // Stream stdout
         outPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
             if !data.isEmpty, let output = String(data: data, encoding: .utf8) {
@@ -38,7 +36,6 @@ class ProcessMonitor {
             }
         }
 
-        // Stream stderr
         errPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
             if !data.isEmpty, let output = String(data: data, encoding: .utf8) {
@@ -48,7 +45,6 @@ class ProcessMonitor {
 
         try proc.run()
 
-        // Monitor exit in background
         DispatchQueue.global(qos: .utility).async { [weak self] in
             proc.waitUntilExit()
             let exitCode = proc.terminationStatus

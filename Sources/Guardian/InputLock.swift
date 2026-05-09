@@ -1,5 +1,6 @@
 import Foundation
 import CoreGraphics
+import ApplicationServices
 
 // CGEventTap-based input blocker.
 // Blocks all keyboard and mouse events EXCEPT the unlock shortcut.
@@ -11,21 +12,19 @@ enum InputLockError: Error {
 }
 
 class InputLock {
-    private var keyboardTap: CFMachPort?
-    private var mouseTap: CFMachPort?
+    var keyboardTap: CFMachPort?
+    var mouseTap: CFMachPort?
     private var keyboardRunLoopSource: CFRunLoopSource?
     private var mouseRunLoopSource: CFRunLoopSource?
 
-    // Unlock shortcut: Cmd+Shift+L (keycode 37 = 'L')
-    private let unlockKeycode: Int64 = 37
+    // Unlock shortcut: Cmd+Shift+L (keycode 37)
+    let unlockKeycode: Int64 = 37
     var onUnlockShortcut: (() -> Void)?
 
-    // Check accessibility permission
     static func isAccessibilityGranted() -> Bool {
         return AXIsProcessTrusted()
     }
 
-    // Prompt user to grant accessibility permission
     static func promptAccessibility() {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
         _ = AXIsProcessTrustedWithOptions(options)
@@ -36,18 +35,19 @@ class InputLock {
             throw InputLockError.accessibilityNotGranted
         }
 
-        // Keyboard event tap
-        let keyboardMask: CGEventMask = (1 << CGEventType.keyDown.rawValue)
-            | (1 << CGEventType.keyUp.rawValue)
-            | (1 << CGEventType.flagsChanged.rawValue)
+        // Keyboard event tap using Swift-native API
+        let keyDown = CGEventType.keyDown.rawValue
+        let keyUp = CGEventType.keyUp.rawValue
+        let flagsChanged = CGEventType.flagsChanged.rawValue
+        let keyboardMask = CGEventMask(1 << keyDown) | CGEventMask(1 << keyUp) | CGEventMask(1 << flagsChanged)
 
-        guard let kTap = CGEventTapCreate(
-            .cgSessionEventTap,
-            .headInsertEventTap,
-            .defaultTap,
-            CGEventMask(keyboardMask),
-            keyboardCallback,
-            Unmanaged.passUnretained(self).toOpaque()
+        guard let kTap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: keyboardMask,
+            callback: keyboardCallback,
+            userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {
             throw InputLockError.tapCreationFailed("Keyboard event tap creation failed. Check Accessibility permissions.")
         }
@@ -55,30 +55,32 @@ class InputLock {
         keyboardTap = kTap
         keyboardRunLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, kTap, 0)
         CFRunLoopAddSource(CFRunLoopGetCurrent(), keyboardRunLoopSource, .commonModes)
-        CGEventTapEnable(kTap, true)
+        CGEvent.tapEnable(tap: kTap, enable: true)
 
-        // Mouse event tap
-        let mouseMask: CGEventMask = (1 << CGEventType.mouseMoved.rawValue)
-            | (1 << CGEventType.leftMouseDragged.rawValue)
-            | (1 << CGEventType.rightMouseDragged.rawValue)
-            | (1 << CGEventType.otherMouseDragged.rawValue)
-            | (1 << CGEventType.leftMouseDown.rawValue)
-            | (1 << CGEventType.leftMouseUp.rawValue)
-            | (1 << CGEventType.rightMouseDown.rawValue)
-            | (1 << CGEventType.rightMouseUp.rawValue)
-            | (1 << CGEventType.otherMouseDown.rawValue)
-            | (1 << CGEventType.otherMouseUp.rawValue)
-            | (1 << CGEventType.scrollWheel.rawValue)
+        // Mouse event tap — broken into sub-masks to avoid type-checker timeout
+        let mouseMoved = CGEventMask(1 << CGEventType.mouseMoved.rawValue)
+        let leftDrag = CGEventMask(1 << CGEventType.leftMouseDragged.rawValue)
+        let rightDrag = CGEventMask(1 << CGEventType.rightMouseDragged.rawValue)
+        let otherDrag = CGEventMask(1 << CGEventType.otherMouseDragged.rawValue)
+        let leftDown = CGEventMask(1 << CGEventType.leftMouseDown.rawValue)
+        let leftUp = CGEventMask(1 << CGEventType.leftMouseUp.rawValue)
+        let rightDown = CGEventMask(1 << CGEventType.rightMouseDown.rawValue)
+        let rightUp = CGEventMask(1 << CGEventType.rightMouseUp.rawValue)
+        let otherDown = CGEventMask(1 << CGEventType.otherMouseDown.rawValue)
+        let otherUp = CGEventMask(1 << CGEventType.otherMouseUp.rawValue)
+        let scroll = CGEventMask(1 << CGEventType.scrollWheel.rawValue)
+        let mouseMask = mouseMoved | leftDrag | rightDrag | otherDrag
+            | leftDown | leftUp | rightDown | rightUp
+            | otherDown | otherUp | scroll
 
-        guard let mTap = CGEventTapCreate(
-            .cgSessionEventTap,
-            .headInsertEventTap,
-            .defaultTap,
-            CGEventMask(mouseMask),
-            mouseCallback,
-            Unmanaged.passUnretained(self).toOpaque()
+        guard let mTap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: mouseMask,
+            callback: mouseCallback,
+            userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {
-            // Clean up keyboard tap if mouse tap fails
             deactivate()
             throw InputLockError.tapCreationFailed("Mouse event tap creation failed.")
         }
@@ -86,12 +88,12 @@ class InputLock {
         mouseTap = mTap
         mouseRunLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, mTap, 0)
         CFRunLoopAddSource(CFRunLoopGetCurrent(), mouseRunLoopSource, .commonModes)
-        CGEventTapEnable(mTap, true)
+        CGEvent.tapEnable(tap: mTap, enable: true)
     }
 
     func deactivate() {
         if let kTap = keyboardTap {
-            CGEventTapEnable(kTap, false)
+            CGEvent.tapEnable(tap: kTap, enable: false)
             if let source = keyboardRunLoopSource {
                 CFRunLoopRemoveSource(CFRunLoopGetCurrent(), source, .commonModes)
             }
@@ -99,7 +101,7 @@ class InputLock {
             keyboardRunLoopSource = nil
         }
         if let mTap = mouseTap {
-            CGEventTapEnable(mTap, false)
+            CGEvent.tapEnable(tap: mTap, enable: false)
             if let source = mouseRunLoopSource {
                 CFRunLoopRemoveSource(CFRunLoopGetCurrent(), source, .commonModes)
             }
@@ -119,15 +121,14 @@ private func keyboardCallback(
     proxy: CGEventTapProxy,
     type: CGEventType,
     event: CGEvent,
-    refcon: UnsafeMutableRawPointer?
+    userInfo: UnsafeMutableRawPointer?
 ) -> Unmanaged<CGEvent>? {
-    guard let refcon = refcon else { return nil }
-    let lock = Unmanaged<InputLock>.fromOpaque(refcon).takeUnretainedValue()
+    guard let userInfo = userInfo else { return nil }
+    let lock = Unmanaged<InputLock>.fromOpaque(userInfo).takeUnretainedValue()
 
-    // Handle tap being disabled by the system (e.g. timeout)
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
         if let tap = lock.keyboardTap {
-            CGEventTapEnable(tap, true)
+            CGEvent.tapEnable(tap: tap, enable: true)
         }
         return nil
     }
@@ -135,18 +136,15 @@ private func keyboardCallback(
     let flags = event.flags
     let keycode = event.getIntegerValueField(.keyboardEventKeycode)
 
-    // Allow Cmd+Shift+L through — trigger unlock
     let hasCmd = flags.contains(.maskCommand)
     let hasShift = flags.contains(.maskShift)
     if hasCmd && hasShift && keycode == lock.unlockKeycode && type == .keyDown {
-        // Dispatch unlock asynchronously to avoid deadlocking in the callback
         DispatchQueue.main.async {
             lock.onUnlockShortcut?()
         }
-        return nil // swallow the keystroke
+        return nil
     }
 
-    // Block everything else
     return nil
 }
 
@@ -154,18 +152,17 @@ private func mouseCallback(
     proxy: CGEventTapProxy,
     type: CGEventType,
     event: CGEvent,
-    refcon: UnsafeMutableRawPointer?
+    userInfo: UnsafeMutableRawPointer?
 ) -> Unmanaged<CGEvent>? {
-    guard let refcon = refcon else { return nil }
-    let lock = Unmanaged<InputLock>.fromOpaque(refcon).takeUnretainedValue()
+    guard let userInfo = userInfo else { return nil }
+    let lock = Unmanaged<InputLock>.fromOpaque(userInfo).takeUnretainedValue()
 
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
         if let tap = lock.mouseTap {
-            CGEventTapEnable(tap, true)
+            CGEvent.tapEnable(tap: tap, enable: true)
         }
         return nil
     }
 
-    // Block all mouse events
     return nil
 }

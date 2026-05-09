@@ -24,7 +24,6 @@ class Overlay {
 
     func update(message: String) {
         DispatchQueue.main.async { [weak self] in
-            // Update all panels with new message
             for panel in self?.panels ?? [] {
                 if let contentView = panel.contentView,
                    let label = contentView.subviews.first(where: { $0 is NSTextField }) as? NSTextField {
@@ -45,19 +44,16 @@ class Overlay {
                 backing: .buffered,
                 defer: false
             )
-            // Swift 5.9 compatibility — set properties individually
             panel.isFloatingPanel = true
             panel.level = .statusBar + 1
-            panel.backgroundColor = blurLevel > 0
-                ? NSColor.black.withAlphaComponent(0.3 + (Double(blurLevel) / 10.0) * 0.5)
-                : NSColor.black.withAlphaComponent(0.15)
+            let alpha = 0.15 + (Double(blurLevel) / 10.0) * 0.5
+            panel.backgroundColor = NSColor.black.withAlphaComponent(alpha)
             panel.isOpaque = false
             panel.hasShadow = false
             panel.ignoresMouseEvents = false
             panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
             panel.hidesOnDeactivate = false
 
-            // Label
             let label = NSTextField(labelWithString: message)
             label.font = NSFont.systemFont(ofSize: 48, weight: .bold)
             label.textColor = .white
@@ -69,7 +65,6 @@ class Overlay {
                 height: 60
             )
 
-            // Subtitle
             let subtitle = NSTextField(labelWithString: "⌘⇧L to unlock")
             subtitle.font = NSFont.systemFont(ofSize: 18, weight: .regular)
             subtitle.textColor = NSColor.white.withAlphaComponent(0.6)

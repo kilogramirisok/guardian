@@ -2,17 +2,18 @@ import ArgumentParser
 import Foundation
 
 @main
-struct Guardian: ParsableCommand {
+struct GuardianCLI: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "guardian",
         abstract: "Lock input, prevent sleep, keep agents running.",
-        subcommands: [Lock.self, Wrap.self, Status.self],
+        subcommands: [LockCommand.self, WrapCommand.self, StatusCommand.self],
         defaultSubcommand: nil
     )
 }
 
-struct Lock: ParsableCommand {
+struct LockCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
+        commandName: "lock",
         abstract: "Lock all input devices and prevent sleep."
     )
 
@@ -27,27 +28,14 @@ struct Lock: ParsableCommand {
 
     func run() throws {
         let daemon = GuardianDaemon()
-        let seconds = try parseDuration(timeout)
+        let seconds = try GuardianCLI.parseDuration(timeout)
         try daemon.lock(blur: screenBlur ? blur : 0, timeoutSeconds: seconds)
-    }
-
-    private func parseDuration(_ input: String) throws -> Int {
-        let scanner = Scanner(string: input)
-        guard let value = scanner.scanInt() else {
-            throw ValidationError("Invalid timeout format: \(input). Use e.g. 30m, 2h.")
-        }
-        let remaining = String(input[scanner.currentIndex...]).lowercased()
-        switch remaining {
-        case "s", "": return value
-        case "m": return value * 60
-        case "h": return value * 3600
-        default: throw ValidationError("Unknown time unit: \(remaining). Use s, m, or h.")
-        }
     }
 }
 
-struct Wrap: ParsableCommand {
+struct WrapCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
+        commandName: "wrap",
         abstract: "Lock input, run a command, auto-unlock when it exits."
     )
 
@@ -66,13 +54,45 @@ struct Wrap: ParsableCommand {
     }
 }
 
-struct Status: ParsableCommand {
+struct StatusCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
+        commandName: "status",
         abstract: "Query guardian daemon status."
     )
 
     func run() throws {
         let daemon = GuardianDaemon()
         try daemon.status()
+    }
+}
+
+// MARK: - Shared Utilities
+
+extension GuardianCLI {
+    static func parseDuration(_ input: String) throws -> Int {
+        let scanner = Scanner(string: input)
+        guard let value = scanner.scanInt() else {
+            throw ValidationError("Invalid timeout format: \(input). Use e.g. 30m, 2h.")
+        }
+        let remaining = String(input[scanner.currentIndex...]).lowercased()
+        switch remaining {
+        case "s", "": return value
+        case "m": return value * 60
+        case "h": return value * 3600
+        default: throw ValidationError("Unknown time unit: \(remaining). Use s, m, or h.")
+        }
+    }
+
+    static func formatDuration(_ interval: TimeInterval) -> String {
+        let hours = Int(interval) / 3600
+        let minutes = Int(interval) % 3600 / 60
+        let seconds = Int(interval) % 60
+        if hours > 0 {
+            return String(format: "%dh %dm %ds", hours, minutes, seconds)
+        } else if minutes > 0 {
+            return String(format: "%dm %ds", minutes, seconds)
+        } else {
+            return String(format: "%ds", seconds)
+        }
     }
 }

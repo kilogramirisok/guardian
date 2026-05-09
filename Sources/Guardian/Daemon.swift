@@ -1,7 +1,6 @@
 import Foundation
 
 // Main daemon that coordinates input locking, keep-awake, overlay, and unlock.
-// Runs a CFRunLoop to keep CGEventTap callbacks alive.
 
 class GuardianDaemon {
     private let inputLock = InputLock()
@@ -15,7 +14,6 @@ class GuardianDaemon {
     // MARK: - Lock
 
     func lock(blur: Int, timeoutSeconds: Int) throws {
-        // Pre-flight checks
         guard InputLock.isAccessibilityGranted() else {
             print("❌ Accessibility permission not granted.")
             print("   Open System Settings → Privacy & Security → Accessibility")
@@ -27,7 +25,6 @@ class GuardianDaemon {
         print("🔒 Locking input...")
         startTime = Date()
 
-        // Activate components
         do {
             try inputLock.activate()
         } catch {
@@ -43,7 +40,6 @@ class GuardianDaemon {
 
         overlay.show(blurLevel: blur)
 
-        // Set up unlock handler
         inputLock.onUnlockShortcut = { [weak self] in
             self?.requestUnlock()
         }
@@ -52,7 +48,6 @@ class GuardianDaemon {
             self?.unlock()
         }
 
-        // Timeout timer
         timer = Timer.scheduledTimer(withTimeInterval: TimeInterval(timeoutSeconds), repeats: false) { [weak self] _ in
             print("⏰ Timeout reached, auto-unlocking...")
             self?.unlock()
@@ -61,7 +56,6 @@ class GuardianDaemon {
         print("🔒 Input locked. Press ⌘⇧L to unlock.")
         print("   Timeout: \(timeoutSeconds)s")
 
-        // Run the run loop (blocks here until unlock)
         CFRunLoopRun()
     }
 
@@ -96,7 +90,6 @@ class GuardianDaemon {
             self?.unlock()
         }
 
-        // Launch the wrapped process
         let monitor = ProcessMonitor()
         processMonitor = monitor
 
@@ -121,7 +114,6 @@ class GuardianDaemon {
             return
         }
 
-        // Run the run loop
         CFRunLoopRun()
     }
 
@@ -129,7 +121,6 @@ class GuardianDaemon {
 
     func status() throws {
         let socketPath = "/tmp/guardian.sock"
-
         if FileManager.default.fileExists(atPath: socketPath) {
             print("🔒 Guardian is running")
         } else {
@@ -156,22 +147,9 @@ class GuardianDaemon {
 
         if let start = startTime {
             let elapsed = Date().timeIntervalSince(start)
-            print("   Session duration: \(formatDuration(elapsed))")
+            print("   Session duration: \(GuardianCLI.formatDuration(elapsed))")
         }
 
         CFRunLoopStop(CFRunLoopGetCurrent())
-    }
-
-    private func formatDuration(_ interval: TimeInterval) -> String {
-        let hours = Int(interval) / 3600
-        let minutes = Int(interval) % 3600 / 60
-        let seconds = Int(interval) % 60
-        if hours > 0 {
-            return String(format: "%dh %dm %ds", hours, minutes, seconds)
-        } else if minutes > 0 {
-            return String(format: "%dm %ds", minutes, seconds)
-        } else {
-            return String(format: "%ds", seconds)
-        }
     }
 }

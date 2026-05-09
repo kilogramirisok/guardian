@@ -2,7 +2,6 @@ import Foundation
 import LocalAuthentication
 
 // Touch ID and password-based unlock.
-// LocalAuthentication provides biometric auth via LAContext.
 
 class UnlockManager {
     var onUnlock: (() -> Void)?
@@ -14,7 +13,6 @@ class UnlockManager {
 
         var error: NSError?
         guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
-            // Fallback to password if Touch ID not available
             requestPasswordUnlock()
             return
         }
@@ -28,7 +26,6 @@ class UnlockManager {
                     self?.onUnlock?()
                 }
             }
-            // Failed auth — stay locked, user can try again
         }
     }
 
