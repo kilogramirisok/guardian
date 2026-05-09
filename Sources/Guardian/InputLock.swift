@@ -140,8 +140,9 @@ private func keyboardCallback(
     let hasCmd = flags.contains(.maskCommand)
     let hasShift = flags.contains(.maskShift)
     if hasCmd && hasShift && keycode == lock.unlockKeycode && type == .keyDown {
+        let action = lock.onUnlockShortcut
         DispatchQueue.main.async {
-            lock.onUnlockShortcut?()
+            action?()
         }
         return nil
     }
