@@ -1,7 +1,9 @@
 import Foundation
 
 // Main daemon that coordinates input locking, keep-awake, overlay, and unlock.
+// @MainActor because it owns Overlay (@MainActor) and runs on the main thread.
 
+@MainActor
 class GuardianDaemon {
     private let inputLock = InputLock()
     private let keepAwake = KeepAwake()
@@ -41,16 +43,22 @@ class GuardianDaemon {
         overlay.show(blurLevel: blur)
 
         inputLock.onUnlockShortcut = { [weak self] in
-            self?.requestUnlock()
+            Task { @MainActor in
+                self?.requestUnlock()
+            }
         }
 
         unlockManager.onUnlock = { [weak self] in
-            self?.unlock()
+            Task { @MainActor in
+                self?.unlock()
+            }
         }
 
         timer = Timer.scheduledTimer(withTimeInterval: TimeInterval(timeoutSeconds), repeats: false) { [weak self] _ in
             print("⏰ Timeout reached, auto-unlocking...")
-            self?.unlock()
+            Task { @MainActor in
+                self?.unlock()
+            }
         }
 
         print("🔒 Input locked. Press ⌘⇧L to unlock.")
@@ -83,11 +91,15 @@ class GuardianDaemon {
         overlay.show(message: "🔒 Running: \(command.last ?? "command")", blurLevel: blur)
 
         inputLock.onUnlockShortcut = { [weak self] in
-            self?.requestUnlock()
+            Task { @MainActor in
+                self?.requestUnlock()
+            }
         }
 
         unlockManager.onUnlock = { [weak self] in
-            self?.unlock()
+            Task { @MainActor in
+                self?.unlock()
+            }
         }
 
         let monitor = ProcessMonitor()
@@ -99,8 +111,9 @@ class GuardianDaemon {
 
         monitor.onExit = { [weak self] exitCode in
             print("\n✅ Command exited with code \(exitCode)")
-            self?.overlay.update(message: "Done (exit \(exitCode))")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            Task { @MainActor in
+                self?.overlay.update(message: "Done (exit \(exitCode))")
+                try? await Task.sleep(for: .seconds(2))
                 self?.unlock()
             }
         }

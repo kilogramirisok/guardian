@@ -26,7 +26,8 @@ class InputLock {
     }
 
     static func promptAccessibility() {
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
+        let promptKey = "kAXTrustedCheckOptionPrompt" as CFString
+        let options = [promptKey: true] as CFDictionary
         _ = AXIsProcessTrustedWithOptions(options)
     }
 

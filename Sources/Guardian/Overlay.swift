@@ -3,32 +3,28 @@ import AppKit
 
 // Full-screen overlay that shows "Locked" status.
 // Uses NSPanel to avoid stealing focus from the wrapped process.
+// All AppKit UI work is isolated to @MainActor (Swift 6 requirement).
 
+@MainActor
 class Overlay {
     private var panels: [NSPanel] = []
 
     func show(message: String = "🔒 Locked", blurLevel: Int = 0) {
-        DispatchQueue.main.async { [weak self] in
-            self?.createPanels(message: message, blurLevel: blurLevel)
-        }
+        createPanels(message: message, blurLevel: blurLevel)
     }
 
     func hide() {
-        DispatchQueue.main.async { [weak self] in
-            for panel in self?.panels ?? [] {
-                panel.orderOut(nil)
-            }
-            self?.panels.removeAll()
+        for panel in panels {
+            panel.orderOut(nil)
         }
+        panels.removeAll()
     }
 
     func update(message: String) {
-        DispatchQueue.main.async { [weak self] in
-            for panel in self?.panels ?? [] {
-                if let contentView = panel.contentView,
-                   let label = contentView.subviews.first(where: { $0 is NSTextField }) as? NSTextField {
-                    label.stringValue = message
-                }
+        for panel in panels {
+            if let contentView = panel.contentView,
+               let label = contentView.subviews.first(where: { $0 is NSTextField }) as? NSTextField {
+                label.stringValue = message
             }
         }
     }
