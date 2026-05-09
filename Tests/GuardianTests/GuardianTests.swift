@@ -45,22 +45,54 @@ final class FormattingTests: XCTestCase {
     }
 }
 
+// Thread-safe result collector for @Sendable callbacks
+private final class TestResult: @unchecked Sendable {
+    let lock = NSLock()
+    private var _output = ""
+    private var _exitCode: Int32 = -1
+    private var _fulfilled = false
+    let expectation: XCTestExpectation
+
+    init(expectation: XCTestExpectation) {
+        self.expectation = expectation
+    }
+
+    var output: String {
+        lock.withLock { _output }
+    }
+
+    var exitCode: Int32 {
+        lock.withLock { _exitCode }
+    }
+
+    func appendOutput(_ text: String) {
+        lock.withLock { _output += text }
+    }
+
+    func setExitCode(_ code: Int32) {
+        lock.withLock {
+            _exitCode = code
+            if !_fulfilled {
+                _fulfilled = true
+                expectation.fulfill()
+            }
+        }
+    }
+}
+
 @MainActor
 final class ProcessMonitorTests: XCTestCase {
 
     func testLaunchEcho() async throws {
-        let monitor = ProcessMonitor()
         let expectation = self.expectation(description: "Process exits")
-        var receivedOutput = ""
-        var exitCode: Int32 = -1
+        let result = TestResult(expectation: expectation)
 
+        let monitor = ProcessMonitor()
         monitor.onOutput = { output in
-            receivedOutput += output
+            result.appendOutput(output)
         }
-
         monitor.onExit = { code in
-            exitCode = code
-            expectation.fulfill()
+            result.setExitCode(code)
         }
 
         let pid = try monitor.launch(command: ["/bin/echo", "hello guardian"])
@@ -68,25 +100,24 @@ final class ProcessMonitorTests: XCTestCase {
 
         await fulfillment(of: [expectation], timeout: 5)
 
-        XCTAssertEqual(exitCode, 0)
-        XCTAssertTrue(receivedOutput.contains("hello guardian"))
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertTrue(result.output.contains("hello guardian"))
     }
 
     func testLaunchExitCode() async throws {
-        let monitor = ProcessMonitor()
         let expectation = self.expectation(description: "Process exits")
-        var exitCode: Int32 = -1
+        let result = TestResult(expectation: expectation)
 
+        let monitor = ProcessMonitor()
         monitor.onExit = { code in
-            exitCode = code
-            expectation.fulfill()
+            result.setExitCode(code)
         }
 
         _ = try monitor.launch(command: ["/bin/bash", "-c", "exit 42"])
 
         await fulfillment(of: [expectation], timeout: 5)
 
-        XCTAssertEqual(exitCode, 42)
+        XCTAssertEqual(result.exitCode, 42)
     }
 
     func testLaunchSleep() throws {
