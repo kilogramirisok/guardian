@@ -27,7 +27,7 @@ struct LockCommand: AsyncParsableCommand {
     var screenBlur = false
 
     func run() async throws {
-        let daemon = GuardianDaemon()
+        let daemon = await GuardianDaemon()
         let seconds = try GuardianCLI.parseDuration(timeout)
         try await daemon.lock(blur: screenBlur ? blur : 0, timeoutSeconds: seconds)
     }
@@ -49,7 +49,7 @@ struct WrapCommand: AsyncParsableCommand {
         guard !command.isEmpty else {
             throw ValidationError("No command provided. Usage: guardian wrap -- <command>")
         }
-        let daemon = GuardianDaemon()
+        let daemon = await GuardianDaemon()
         try await daemon.wrap(command: command, blur: blur)
     }
 }
@@ -61,7 +61,7 @@ struct StatusCommand: AsyncParsableCommand {
     )
 
     func run() async throws {
-        let daemon = GuardianDaemon()
+        let daemon = await GuardianDaemon()
         try await daemon.status()
     }
 }
