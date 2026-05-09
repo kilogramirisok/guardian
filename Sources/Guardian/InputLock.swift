@@ -23,8 +23,8 @@ private final class InputLockRefBox {
 }
 
 class InputLock {
-    private var keyboardTap: CFMachPort?
-    private var mouseTap: CFMachPort?
+    private(set) var keyboardTap: CFMachPort?
+    private(set) var mouseTap: CFMachPort?
     private var keyboardRunLoopSource: CFRunLoopSource?
     private var mouseRunLoopSource: CFRunLoopSource?
     private var refBox: InputLockRefBox?

@@ -211,17 +211,12 @@ class GuardianDaemon {
 
         // SIGTERM — clean exit (kill, system shutdown)
         signal(SIGTERM) { _ in
-            Task { @MainActor in
-                // Force cleanup without auth — the process is being killed
-                CFRunLoopStop(CFRunLoopGetCurrent())
-            }
+            CFRunLoopStop(CFRunLoopGetMain())
         }
 
         // SIGINT — Ctrl+C from another terminal
         signal(SIGINT) { _ in
-            Task { @MainActor in
-                CFRunLoopStop(CFRunLoopGetCurrent())
-            }
+            CFRunLoopStop(CFRunLoopGetMain())
         }
     }
 }
