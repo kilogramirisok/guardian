@@ -1,6 +1,5 @@
 import Foundation
 import IOKit
-import IOKit.pwr_mgmt
 
 // Prevents system and display sleep using IOKit power assertions.
 // Same mechanism as `caffeinate -d -i -s`.
@@ -16,7 +15,7 @@ class KeepAwake {
         let sleepReason = "Guardian: prevent system sleep" as CFString
         let sleepResult = IOPMAssertionCreateWithName(
             kIOPMAssertPreventUserIdleSystemSleep as CFString,
-            .default,
+            IOPMAssertionLevel.default.rawValue,
             sleepReason,
             &sleepAssertionID
         )
@@ -25,7 +24,7 @@ class KeepAwake {
         let displayReason = "Guardian: prevent display sleep" as CFString
         let displayResult = IOPMAssertionCreateWithName(
             kIOPMAssertPreventUserIdleDisplaySleep as CFString,
-            .default,
+            IOPMAssertionLevel.default.rawValue,
             displayReason,
             &displayAssertionID
         )
@@ -34,7 +33,7 @@ class KeepAwake {
         let idleReason = "Guardian: prevent idle sleep" as CFString
         let idleResult = IOPMAssertionCreateWithName(
             kIOPMAssertPreventUserIdleSystemSleep as CFString,
-            .default,
+            IOPMAssertionLevel.default.rawValue,
             idleReason,
             &idleAssertionID
         )
