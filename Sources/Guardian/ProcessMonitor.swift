@@ -1,11 +1,14 @@
 import Foundation
 
-// Monitors a child process PID for exit.
+// Monitors a child process for exit.
 // Used by `guardian wrap` to auto-unlock when the wrapped command finishes.
+// Thread-safe via NSLock for Swift 6 Sendable compliance.
 
 final class ProcessMonitor: @unchecked Sendable {
     private let lock = NSLock()
     private var _process: Process?
+    private var _stdoutPipe: Pipe?
+    private var _stderrPipe: Pipe?
     private var process: Process? {
         get { lock.withLock { _process } }
         set { lock.withLock { _process = newValue } }
@@ -31,6 +34,11 @@ final class ProcessMonitor: @unchecked Sendable {
         proc.standardOutput = outPipe
         proc.standardError = errPipe
 
+        lock.withLock {
+            _stdoutPipe = outPipe
+            _stderrPipe = errPipe
+        }
+
         outPipe.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
             if !data.isEmpty, let output = String(data: data, encoding: .utf8) {
@@ -52,6 +60,11 @@ final class ProcessMonitor: @unchecked Sendable {
         DispatchQueue.global(qos: .utility).async {
             proc.waitUntilExit()
             let exitCode = proc.terminationStatus
+
+            // Break retain cycle: clear handlers so Pipe → FileHandle → closure → self is released
+            outPipe.fileHandleForReading.readabilityHandler = nil
+            errPipe.fileHandleForReading.readabilityHandler = nil
+
             self.onExit?(exitCode)
         }
 
@@ -59,14 +72,17 @@ final class ProcessMonitor: @unchecked Sendable {
     }
 
     func terminate() {
+        // Clear handlers before terminating to break retain cycle
+        lock.withLock {
+            _stdoutPipe?.fileHandleForReading.readabilityHandler = nil
+            _stderrPipe?.fileHandleForReading.readabilityHandler = nil
+            _stdoutPipe = nil
+            _stderrPipe = nil
+        }
         process?.terminate()
     }
 
     var isRunning: Bool {
         return process?.isRunning ?? false
-    }
-
-    var pid: pid_t? {
-        return process?.processIdentifier
     }
 }

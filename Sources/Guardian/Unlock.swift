@@ -2,11 +2,16 @@ import Foundation
 import LocalAuthentication
 
 // Touch ID and password-based unlock.
+// Re-entry guard prevents stacked biometric dialogs from rapid shortcut presses.
 
 class UnlockManager {
-    var onUnlock: (() -> Void)?
+    var onUnlock: (@Sendable () -> Void)?
+    private var isAuthenticating = false
 
     func requestUnlock() {
+        guard !isAuthenticating else { return }
+        isAuthenticating = true
+
         let context = LAContext()
         context.localizedCancelTitle = "Cancel"
         context.localizedFallbackTitle = "Use Password"
@@ -21,8 +26,9 @@ class UnlockManager {
             .deviceOwnerAuthenticationWithBiometrics,
             localizedReason: "Unlock Guardian"
         ) { [weak self] success, _ in
-            if success {
-                DispatchQueue.main.async {
+            DispatchQueue.main.async {
+                self?.isAuthenticating = false
+                if success {
                     self?.onUnlock?()
                 }
             }
@@ -37,8 +43,9 @@ class UnlockManager {
             .deviceOwnerAuthentication,
             localizedReason: "Enter password to unlock Guardian"
         ) { [weak self] success, _ in
-            if success {
-                DispatchQueue.main.async {
+            DispatchQueue.main.async {
+                self?.isAuthenticating = false
+                if success {
                     self?.onUnlock?()
                 }
             }

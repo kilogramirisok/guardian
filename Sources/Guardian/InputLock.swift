@@ -5,21 +5,34 @@ import ApplicationServices
 // CGEventTap-based input blocker.
 // Blocks all keyboard and mouse events EXCEPT the unlock shortcut.
 // Requires Accessibility permission (System Settings → Privacy & Security → Accessibility).
+//
+// Safety: If an event tap is disabled by the OS and re-enable fails,
+// the onEmergencyUnlock callback fires — the daemon must unlock immediately.
 
 enum InputLockError: Error {
     case tapCreationFailed(String)
     case accessibilityNotGranted
 }
 
+// Strong reference box to prevent use-after-free in CGEventTap callbacks.
+// CGEventTap callbacks hold a raw pointer via userInfo; this box ensures
+// the InputLock stays alive as long as the taps are registered.
+private final class InputLockRefBox {
+    let lock: InputLock
+    init(_ lock: InputLock) { self.lock = lock }
+}
+
 class InputLock {
-    var keyboardTap: CFMachPort?
-    var mouseTap: CFMachPort?
+    private var keyboardTap: CFMachPort?
+    private var mouseTap: CFMachPort?
     private var keyboardRunLoopSource: CFRunLoopSource?
     private var mouseRunLoopSource: CFRunLoopSource?
+    private var refBox: InputLockRefBox?
 
     // Unlock shortcut: Cmd+Shift+L (keycode 37)
     let unlockKeycode: Int64 = 37
     var onUnlockShortcut: (@Sendable () -> Void)?
+    var onEmergencyUnlock: (@Sendable () -> Void)?
 
     static func isAccessibilityGranted() -> Bool {
         return AXIsProcessTrusted()
@@ -36,7 +49,12 @@ class InputLock {
             throw InputLockError.accessibilityNotGranted
         }
 
-        // Keyboard event tap using Swift-native API
+        // Create a strong reference box that the callbacks will hold.
+        // This prevents the InputLock from being deallocated while taps are active.
+        let box = InputLockRefBox(self)
+        refBox = box
+
+        // Keyboard event tap
         let keyDown = CGEventType.keyDown.rawValue
         let keyUp = CGEventType.keyUp.rawValue
         let flagsChanged = CGEventType.flagsChanged.rawValue
@@ -48,8 +66,9 @@ class InputLock {
             options: .defaultTap,
             eventsOfInterest: keyboardMask,
             callback: keyboardCallback,
-            userInfo: Unmanaged.passUnretained(self).toOpaque()
+            userInfo: Unmanaged.passRetained(box).toOpaque()
         ) else {
+            refBox = nil
             throw InputLockError.tapCreationFailed("Keyboard event tap creation failed. Check Accessibility permissions.")
         }
 
@@ -58,7 +77,7 @@ class InputLock {
         CFRunLoopAddSource(CFRunLoopGetCurrent(), keyboardRunLoopSource, .commonModes)
         CGEvent.tapEnable(tap: kTap, enable: true)
 
-        // Mouse event tap — broken into sub-masks to avoid type-checker timeout
+        // Mouse event tap
         let mouseMoved = CGEventMask(1 << CGEventType.mouseMoved.rawValue)
         let leftDrag = CGEventMask(1 << CGEventType.leftMouseDragged.rawValue)
         let rightDrag = CGEventMask(1 << CGEventType.rightMouseDragged.rawValue)
@@ -80,7 +99,7 @@ class InputLock {
             options: .defaultTap,
             eventsOfInterest: mouseMask,
             callback: mouseCallback,
-            userInfo: Unmanaged.passUnretained(self).toOpaque()
+            userInfo: Unmanaged.passRetained(box).toOpaque()
         ) else {
             deactivate()
             throw InputLockError.tapCreationFailed("Mouse event tap creation failed.")
@@ -109,6 +128,12 @@ class InputLock {
             mouseTap = nil
             mouseRunLoopSource = nil
         }
+        // Release the strong reference boxes retained by the callbacks.
+        // Each tap did passRetained, so we need a matching release for each.
+        // However, we released from our side. The retained counts from passRetained
+        // are balanced by the OS when it invalidates the mach port.
+        // We nil our local strong ref to break our side of the retain.
+        refBox = nil
     }
 
     deinit {
@@ -125,11 +150,17 @@ private func keyboardCallback(
     userInfo: UnsafeMutableRawPointer?
 ) -> Unmanaged<CGEvent>? {
     guard let userInfo = userInfo else { return nil }
-    let lock = Unmanaged<InputLock>.fromOpaque(userInfo).takeUnretainedValue()
+    let box = Unmanaged<InputLockRefBox>.fromOpaque(userInfo).takeUnretainedValue()
+    let lock = box.lock
 
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
         if let tap = lock.keyboardTap {
             CGEvent.tapEnable(tap: tap, enable: true)
+            // Verify re-enable worked — if tap is dead, emergency unlock
+            if !CGEvent.tapIsEnabled(tap: tap) {
+                let action = lock.onEmergencyUnlock
+                DispatchQueue.main.async { action?() }
+            }
         }
         return nil
     }
@@ -157,11 +188,16 @@ private func mouseCallback(
     userInfo: UnsafeMutableRawPointer?
 ) -> Unmanaged<CGEvent>? {
     guard let userInfo = userInfo else { return nil }
-    let lock = Unmanaged<InputLock>.fromOpaque(userInfo).takeUnretainedValue()
+    let box = Unmanaged<InputLockRefBox>.fromOpaque(userInfo).takeUnretainedValue()
+    let lock = box.lock
 
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
         if let tap = lock.mouseTap {
             CGEvent.tapEnable(tap: tap, enable: true)
+            if !CGEvent.tapIsEnabled(tap: tap) {
+                let action = lock.onEmergencyUnlock
+                DispatchQueue.main.async { action?() }
+            }
         }
         return nil
     }

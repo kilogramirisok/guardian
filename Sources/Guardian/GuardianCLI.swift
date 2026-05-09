@@ -20,7 +20,7 @@ struct LockCommand: AsyncParsableCommand {
     @Option(name: .shortAndLong, help: "Blur level for screen overlay (0-10).")
     var blur: Int = 5
 
-    @Option(name: .shortAndLong, help: "Auto-unlock timeout (e.g. 30m, 2h).")
+    @Option(name: .shortAndLong, help: "Auto-unlock timeout (e.g. 30m, 2h). Max 24h.")
     var timeout: String = "8h"
 
     @Flag(name: .shortAndLong, help: "Show overlay with blur effect.")
@@ -74,13 +74,22 @@ extension GuardianCLI {
         guard let value = scanner.scanInt() else {
             throw ValidationError("Invalid timeout format: \(input). Use e.g. 30m, 2h.")
         }
+        guard value > 0 else {
+            throw ValidationError("Timeout must be positive, got: \(input)")
+        }
+        let maxSeconds = 86400 // 24h
         let remaining = String(input[scanner.currentIndex...]).lowercased()
+        let seconds: Int
         switch remaining {
-        case "s", "": return value
-        case "m": return value * 60
-        case "h": return value * 3600
+        case "s", "": seconds = value
+        case "m": seconds = value * 60
+        case "h": seconds = value * 3600
         default: throw ValidationError("Unknown time unit: \(remaining). Use s, m, or h.")
         }
+        guard seconds <= maxSeconds else {
+            throw ValidationError("Timeout exceeds maximum of 24h")
+        }
+        return seconds
     }
 
     static func formatDuration(_ interval: TimeInterval) -> String {

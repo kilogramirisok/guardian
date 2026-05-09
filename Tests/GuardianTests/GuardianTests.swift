@@ -1,10 +1,6 @@
 import XCTest
 @testable import Guardian
 
-// InputLock, Overlay, and Unlock tests cannot run on CI
-// (require Accessibility permission + display).
-// Those are tested manually on real hardware.
-
 @MainActor
 final class DurationParsingTests: XCTestCase {
 
@@ -22,6 +18,28 @@ final class DurationParsingTests: XCTestCase {
         XCTAssertEqual(try GuardianCLI.parseDuration("1h"), 3600)
         XCTAssertEqual(try GuardianCLI.parseDuration("8h"), 28800)
         XCTAssertEqual(try GuardianCLI.parseDuration("2h"), 7200)
+    }
+
+    func testRejectsNegative() {
+        XCTAssertThrowsError(try GuardianCLI.parseDuration("-1h")) { error in
+            XCTAssertTrue(error.localizedDescription.contains("positive"))
+        }
+    }
+
+    func testRejectsZero() {
+        XCTAssertThrowsError(try GuardianCLI.parseDuration("0h")) { error in
+            XCTAssertTrue(error.localizedDescription.contains("positive"))
+        }
+    }
+
+    func testRejectsExceedsMax() {
+        XCTAssertThrowsError(try GuardianCLI.parseDuration("25h")) { error in
+            XCTAssertTrue(error.localizedDescription.contains("24h"))
+        }
+    }
+
+    func testRejectsUnknownUnit() {
+        XCTAssertThrowsError(try GuardianCLI.parseDuration("5d"))
     }
 }
 
@@ -127,5 +145,14 @@ final class ProcessMonitorTests: XCTestCase {
         XCTAssertTrue(monitor.isRunning)
 
         monitor.terminate()
+        XCTAssertFalse(monitor.isRunning)
+    }
+
+    func testDoubleTerminate() throws {
+        let monitor = ProcessMonitor()
+        _ = try monitor.launch(command: ["/bin/sleep", "300"])
+
+        monitor.terminate()
+        monitor.terminate()  // Should not crash
     }
 }
