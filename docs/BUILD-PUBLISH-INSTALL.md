@@ -77,9 +77,13 @@ gh release create v0.1.0 \
   --notes "First release. guardian lock, wrap, and status commands."
 ```
 
-### Option 2: Homebrew Tap
+### Option 2: Homebrew Tap (Automated)
 
-Create a separate repo `kilogramirisok/homebrew-tap` with a formula:
+A separate repo [`kilogramirisok/homebrew-guardian`](https://github.com/kilogramirisok/homebrew-guardian) contains the formula.
+
+**One-time setup:** Create a Personal Access Token (classic) with `repo` scope, add it as `GH_PAT` secret in the guardian repo settings (Settings → Secrets → Actions → New repository secret).
+
+After that, every `gh release create vX.Y.Z` automatically bumps the formula via `.github/workflows/publish-homebrew.yml`.
 
 ```ruby
 # Formula/guardian.rb
@@ -106,9 +110,11 @@ end
 
 Users install with:
 ```bash
-brew tap kilogramirisok/tap
+brew tap kilogramirisok/guardian
 brew install guardian
 ```
+
+No Gatekeeper warnings — Homebrew compiles from source on the user's machine.
 
 ### Option 3: Signed & Notarized .app Bundle (Professional)
 
