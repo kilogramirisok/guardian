@@ -7,26 +7,24 @@ A free, open-source macOS utility that locks all keyboard/mouse input while keep
 ## Features
 
 - **Input Locking** — Blocks all keyboard, mouse, and trackpad via CGEventTap
-- **Sleep Prevention** — Keeps Mac awake using IOKit power assertions
+- **Sleep Prevention** — Keeps Mac awake via `caffeinate`
 - **Touch ID Unlock** — Biometric or password authentication to unlock
 - **Auto-Unlock** — `guardian wrap` unlocks automatically when your command finishes
-- **Screen Overlay** — Optional blur overlay shows locked status
+- **Screen Overlay** — Semi-transparent overlay shows locked status on all displays
 - **Multi-Display** — Covers all connected displays
 
-## Install
+## Quick Start
 
 ```bash
-# Download latest binary
+# Install
 curl -L https://github.com/kilogramirisok/guardian/releases/latest/download/guardian -o /usr/local/bin/guardian
 chmod +x /usr/local/bin/guardian
-```
 
-Or build from source:
-```bash
-git clone https://github.com/kilogramirisok/guardian.git
-cd guardian
-swift build -c release
-cp .build/release/guardian /usr/local/bin/
+# Lock input immediately
+guardian lock
+
+# Run a command with auto-lock (unlocks when command exits)
+guardian wrap -- claude --dangerously-skip-permissions
 ```
 
 ## Usage
@@ -81,6 +79,11 @@ guardian status
 - Accessibility permission (System Settings → Privacy & Security → Accessibility)
 - Add Terminal.app (or your terminal) to the allowed list
 
+## Documentation
+
+- [Architecture & Technical Learnings](docs/ARCHITECTURE.md) — how it works, CGEventTap details, CI learnings
+- [Build, Publish & Install](docs/BUILD-PUBLISH-INSTALL.md) — building from source, Homebrew tap, signed releases, customer install
+
 ## Why not Warden?
 
 [Warden](https://www.getwarden.org) is great — $3.99, polished, does the same thing. Guardian exists because:
@@ -93,21 +96,15 @@ guardian status
 ## Architecture
 
 ```
-guardian (Swift single binary)
-├── InputLock.swift      — CGEventTap to block/whitelist HID events
-├── KeepAwake.swift      — IOKit power assertions (caffeinate-style)
-├── Overlay.swift        — NSPanel fullscreen overlay on all displays
-├── Unlock.swift         — LocalAuthentication (Touch ID / password)
-├── ProcessMonitor.swift — PID monitoring for wrap auto-unlock
-└── Daemon.swift         — Coordinates all components via CFRunLoop
+guardian (Swift single binary, ~800 lines)
+├── GuardianCLI.swift    CLI entry point (ArgumentParser)
+├── InputLock.swift      CGEventTap to block/whitelist HID events
+├── KeepAwake.swift      caffeinate subprocess wrapper
+├── Overlay.swift        NSPanel fullscreen overlay on all displays
+├── Unlock.swift         LocalAuthentication (Touch ID / password)
+├── ProcessMonitor.swift Process launch, stdout streaming, exit detection
+└── Daemon.swift         CFRunLoop coordinator
 ```
-
-## Limitations
-
-- macOS only (CGEventTap, LocalAuthentication, IOKit are Apple frameworks)
-- Requires Accessibility permission (non-negotiable for input interception)
-- Not code-signed — Gatekeeper may warn on first run
-- `pynput` on macOS 15+ is broken — this uses raw CGEventTap instead
 
 ## License
 
