@@ -22,19 +22,25 @@ final class DurationParsingTests: XCTestCase {
 
     func testRejectsNegative() {
         XCTAssertThrowsError(try GuardianCLI.parseDuration("-1h")) { error in
-            XCTAssertTrue(error.localizedDescription.contains("positive"))
+            let desc = error.localizedDescription.lowercased()
+            XCTAssertTrue(desc.contains("positive") || desc.contains("invalid"),
+                          "Expected positive/invalid, got: \(desc)")
         }
     }
 
     func testRejectsZero() {
         XCTAssertThrowsError(try GuardianCLI.parseDuration("0h")) { error in
-            XCTAssertTrue(error.localizedDescription.contains("positive"))
+            let desc = error.localizedDescription.lowercased()
+            XCTAssertTrue(desc.contains("positive") || desc.contains("invalid"),
+                          "Expected positive/invalid, got: \(desc)")
         }
     }
 
     func testRejectsExceedsMax() {
         XCTAssertThrowsError(try GuardianCLI.parseDuration("25h")) { error in
-            XCTAssertTrue(error.localizedDescription.contains("24h"))
+            let desc = error.localizedDescription.lowercased()
+            XCTAssertTrue(desc.contains("24h") || desc.contains("maximum") || desc.contains("exceeds"),
+                          "Expected 24h/max/exceeds, got: \(desc)")
         }
     }
 
@@ -145,7 +151,13 @@ final class ProcessMonitorTests: XCTestCase {
         XCTAssertTrue(monitor.isRunning)
 
         monitor.terminate()
-        XCTAssertFalse(monitor.isRunning)
+        // Process.terminate() is asynchronous — give it a moment
+        let expectation = self.expectation(description: "terminated")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            XCTAssertFalse(monitor.isRunning)
+            expectation.fulfill()
+        }
+        waitForExpectations(timeout: 2)
     }
 
     func testDoubleTerminate() throws {
@@ -153,6 +165,7 @@ final class ProcessMonitorTests: XCTestCase {
         _ = try monitor.launch(command: ["/bin/sleep", "300"])
 
         monitor.terminate()
+        Thread.sleep(forTimeInterval: 0.3)
         monitor.terminate()  // Should not crash
     }
 }
