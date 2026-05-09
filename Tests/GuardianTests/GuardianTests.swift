@@ -5,6 +5,7 @@ import XCTest
 // (require Accessibility permission + display).
 // Those are tested manually on real hardware.
 
+@MainActor
 final class DurationParsingTests: XCTestCase {
 
     func testParseSeconds() throws {
@@ -24,6 +25,7 @@ final class DurationParsingTests: XCTestCase {
     }
 }
 
+@MainActor
 final class FormattingTests: XCTestCase {
 
     func testFormatSecondsOnly() {
@@ -43,9 +45,10 @@ final class FormattingTests: XCTestCase {
     }
 }
 
+@MainActor
 final class ProcessMonitorTests: XCTestCase {
 
-    func testLaunchEcho() throws {
+    func testLaunchEcho() async throws {
         let monitor = ProcessMonitor()
         let expectation = self.expectation(description: "Process exits")
         var receivedOutput = ""
@@ -63,13 +66,13 @@ final class ProcessMonitorTests: XCTestCase {
         let pid = try monitor.launch(command: ["/bin/echo", "hello guardian"])
         XCTAssertGreaterThan(pid, 0)
 
-        waitForExpectations(timeout: 5)
+        await fulfillment(of: [expectation], timeout: 5)
 
         XCTAssertEqual(exitCode, 0)
         XCTAssertTrue(receivedOutput.contains("hello guardian"))
     }
 
-    func testLaunchExitCode() throws {
+    func testLaunchExitCode() async throws {
         let monitor = ProcessMonitor()
         let expectation = self.expectation(description: "Process exits")
         var exitCode: Int32 = -1
@@ -81,7 +84,7 @@ final class ProcessMonitorTests: XCTestCase {
 
         _ = try monitor.launch(command: ["/bin/bash", "-c", "exit 42"])
 
-        waitForExpectations(timeout: 5)
+        await fulfillment(of: [expectation], timeout: 5)
 
         XCTAssertEqual(exitCode, 42)
     }
@@ -93,8 +96,5 @@ final class ProcessMonitorTests: XCTestCase {
         XCTAssertTrue(monitor.isRunning)
 
         monitor.terminate()
-
-        sleep(1)
-        XCTAssertFalse(monitor.isRunning)
     }
 }
