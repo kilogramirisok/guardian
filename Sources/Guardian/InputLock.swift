@@ -19,7 +19,7 @@ class InputLock {
 
     // Unlock shortcut: Cmd+Shift+L (keycode 37)
     let unlockKeycode: Int64 = 37
-    var onUnlockShortcut: (() -> Void)?
+    var onUnlockShortcut: (@Sendable () -> Void)?
 
     static func isAccessibilityGranted() -> Bool {
         return AXIsProcessTrusted()
